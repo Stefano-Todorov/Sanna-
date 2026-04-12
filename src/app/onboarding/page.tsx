@@ -35,6 +35,7 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   // Step 1
   const [niche, setNiche] = useState('')
@@ -63,6 +64,7 @@ export default function OnboardingPage() {
 
   async function handleFinish() {
     setLoading(true)
+    setErrorMsg(null)
 
     const result = await updateProfile({
       niche,
@@ -81,6 +83,7 @@ export default function OnboardingPage() {
     })
 
     if (result?.error) {
+      setErrorMsg(result.error)
       setLoading(false)
       return
     }
@@ -282,6 +285,12 @@ export default function OnboardingPage() {
                     onChange={(e) => setBrandColors(e.target.value)} className={inputClass} />
                 </div>
                 <p className="text-xs text-muted-foreground">Logo upload and font selection coming in a future update.</p>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+                {errorMsg}
               </div>
             )}
 

@@ -43,3 +43,7 @@ supabase.from('profiles').upsert(
 - `npm run dev` — local server
 - DB schema: `supabase/migrations/001_initial_schema.sql`
 - Brand color: teal (#14b8a6) — NOT purple (that's Orianna)
+
+## Environment tooling
+- `gh` CLI is NOT installed. Install with `winget install --id GitHub.cli` then `gh auth login` to unblock repo creation, pushes, and PRs from Claude.
+- Without `gh`, creating GitHub repos requires the user to do it manually in the browser.
