@@ -66,29 +66,37 @@ export default function OnboardingPage() {
     setLoading(true)
     setErrorMsg(null)
 
-    const result = await updateProfile({
-      niche,
-      sub_niche: subNiche || null,
-      product_or_service: product || null,
-      brand_voice: brandVoice === 'custom' ? customVoice : brandVoice,
-      target_audience: {
-        age_range: audienceAge || undefined,
-        pain_points: audiencePainPoints || undefined,
-        where_they_hang_out: audienceWhere || undefined,
-        description: audienceDesc || undefined,
-      },
-      platforms,
-      posting_target: postingTarget,
-      onboarding_completed: true,
-    })
+    try {
+      const result = await updateProfile({
+        niche,
+        sub_niche: subNiche || null,
+        product_or_service: product || null,
+        brand_voice: brandVoice === 'custom' ? customVoice : brandVoice,
+        target_audience: {
+          age_range: audienceAge || undefined,
+          pain_points: audiencePainPoints || undefined,
+          where_they_hang_out: audienceWhere || undefined,
+          description: audienceDesc || undefined,
+        },
+        platforms,
+        posting_target: postingTarget,
+        onboarding_completed: true,
+      })
 
-    if (result?.error) {
-      setErrorMsg(result.error)
+      console.log('updateProfile result:', result)
+
+      if (result?.error) {
+        setErrorMsg(result.error)
+        setLoading(false)
+        return
+      }
+
+      router.push('/dashboard/coach')
+    } catch (e) {
+      console.error('handleFinish threw:', e)
+      setErrorMsg(e instanceof Error ? e.message : String(e))
       setLoading(false)
-      return
     }
-
-    router.push('/dashboard/coach')
   }
 
   const canProceed = [
