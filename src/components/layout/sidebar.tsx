@@ -11,6 +11,8 @@ import {
   Settings,
   LogOut,
   X,
+  ListChecks,
+  Library,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -20,6 +22,8 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/coach', label: 'AI Coach', icon: MessageSquare },
   { href: '/dashboard/strategy', label: 'Strategy', icon: Target },
+  { href: '/dashboard/templates', label: 'Templates', icon: Library },
+  { href: '/dashboard/queue', label: 'Queue', icon: ListChecks },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 

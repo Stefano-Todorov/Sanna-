@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { TelegramLink } from '@/components/settings/telegram-link'
+import { IntegrationsForm } from '@/components/settings/integrations-form'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -63,6 +64,12 @@ export default async function SettingsPage() {
       <TelegramLink
         isLinked={!!profile?.telegram_chat_id}
         chatId={profile?.telegram_chat_id ?? null}
+      />
+
+      <IntegrationsForm
+        metricoolBrandId={profile?.metricool_brand_id ?? null}
+        igBusinessAccountId={profile?.ig_business_account_id ?? null}
+        metaPageId={profile?.meta_page_id ?? null}
       />
     </div>
   )

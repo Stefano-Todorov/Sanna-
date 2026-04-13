@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { getTelegramBot } from '@/lib/telegram'
-import { anthropic, MODEL, buildCoachSystemPrompt } from '@/lib/claude'
+import { anthropic, MODEL, buildCoachSystemPrompt, extractTemplateFromLink } from '@/lib/claude'
+import { extractFirstVideoUrl } from '@/lib/templates'
+import { runAgent } from '@/lib/agent/orchestrator'
+import {
+  approveQueuedPost,
+  rejectQueuedPost,
+  approveTrialReel,
+  rejectTrialReel,
+} from '@/app/actions'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
@@ -9,12 +17,42 @@ export async function POST(request: NextRequest) {
 
   // Handle callback queries (inline keyboard buttons)
   if (body.callback_query) {
-    const callbackData = body.callback_query.data
+    const callbackData: string = body.callback_query.data ?? ''
     const chatId = String(body.callback_query.message?.chat?.id)
+    const messageId = body.callback_query.message?.message_id
     await bot.telegram.answerCbQuery(body.callback_query.id)
 
-    // Handle future callback actions here
-    await bot.telegram.sendMessage(chatId, `Action received: ${callbackData}`)
+    const [action, id] = callbackData.split(':')
+    let resultText = ''
+
+    if (action === 'approve' && id) {
+      const res = await approveQueuedPost(id)
+      if (res.error && !res.notConfigured) {
+        resultText = `⚠️ Approval failed: ${res.error}`
+      } else if (res.notConfigured) {
+        resultText = '✅ Approved (Metricool not yet connected — will schedule once credentials are set)'
+      } else {
+        resultText = `✅ Approved — scheduled via Metricool for ${formatTime(res.scheduledAt)}`
+      }
+    } else if (action === 'reject' && id) {
+      await rejectQueuedPost(id)
+      resultText = '❌ Rejected — draft will not be posted'
+    } else if (action === 'approve_trial' && id) {
+      await approveTrialReel(id)
+      resultText = '🧪 Agent posted Trial Reel — watch for results in 6hrs'
+    } else if (action === 'reject_trial' && id) {
+      await rejectTrialReel(id)
+      resultText = '❌ Trial Reel skipped'
+    } else {
+      resultText = `Unknown action: ${callbackData}`
+    }
+
+    if (messageId) {
+      try {
+        await bot.telegram.editMessageReplyMarkup(chatId, messageId, undefined, { inline_keyboard: [] })
+      } catch {}
+    }
+    await bot.telegram.sendMessage(chatId, resultText)
     return NextResponse.json({ ok: true })
   }
 
@@ -91,6 +129,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  // Template ingestion — any video URL in the message
+  const videoUrl = extractFirstVideoUrl(text)
+  if (videoUrl) {
+    await bot.telegram.sendMessage(chatId, 'Got it — extracting template…')
+    try {
+      const userContext = text.replace(videoUrl, '').trim()
+      const extraction = await extractTemplateFromLink({ url: videoUrl, userContext, profile })
+      const { data: row, error } = await supabase
+        .from('templates')
+        .insert({
+          user_id: profile.user_id,
+          source: 'manual',
+          source_url: videoUrl,
+          ...extraction,
+        })
+        .select('id')
+        .single()
+      if (error || !row) throw new Error(error?.message ?? 'Insert failed')
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+      const link = appUrl ? `${appUrl}/dashboard/templates/${row.id}` : `/dashboard/templates/${row.id}`
+      await bot.telegram.sendMessage(chatId,
+        `✅ Template saved: *${extraction.title}*\n\nHook: ${extraction.hook_formula ?? '—'}\nScenes: ${extraction.scenes.length}\n\nReview & edit: ${link}`,
+        { parse_mode: 'Markdown' }
+      )
+    } catch (e) {
+      await bot.telegram.sendMessage(chatId,
+        `⚠️ Couldn't extract template: ${e instanceof Error ? e.message : 'unknown error'}`
+      )
+    }
+    return NextResponse.json({ ok: true })
+  }
+
   // /coach or plain text — AI response
   const coachMessage = text.startsWith('/coach') ? text.replace('/coach', '').trim() : text
   if (!coachMessage) {
@@ -160,4 +231,13 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true })
+}
+
+function formatTime(iso?: string) {
+  if (!iso) return 'soon'
+  try {
+    return new Date(iso).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
 }
